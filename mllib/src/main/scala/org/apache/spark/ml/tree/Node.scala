@@ -264,7 +264,8 @@ private[tree] class LearningNode(
     var rightChild: Option[LearningNode],
     var split: Option[Split],
     var isLeaf: Boolean,
-    var stats: ImpurityStats) extends Serializable {
+    var stats: ImpurityStats,
+    var level: Int = 0) extends Serializable {
 
   /**
    * Convert this [[LearningNode]] to a regular [[Node]], and recurse on any children.
@@ -333,13 +334,14 @@ private[tree] object LearningNode {
   def apply(
       id: Int,
       isLeaf: Boolean,
-      stats: ImpurityStats): LearningNode = {
-    new LearningNode(id, None, None, None, false, stats)
+      stats: ImpurityStats,
+      level: Int = 0): LearningNode = {
+    new LearningNode(id, None, None, None, false, stats, level)
   }
 
   /** Create an empty node with the given node index.  Values must be set later on. */
-  def emptyNode(nodeIndex: Int): LearningNode = {
-    new LearningNode(nodeIndex, None, None, None, false, null)
+  def emptyNode(nodeIndex: Int, level: Int = 0): LearningNode = {
+    new LearningNode(nodeIndex, None, None, None, false, null, level)
   }
 
   // The below indexing methods were copied from spark.mllib.tree.model.Node
@@ -357,51 +359,47 @@ private[tree] object LearningNode {
   /**
    * Get the parent index of the given node, or 0 if it is the root.
    */
-  def parentIndex(nodeIndex: Int): Int = nodeIndex >> 1
+  def parentIndex(nodeIndex: Int): Int = {
+    throw new UnsupportedOperationException("Parent index is unsupported on learning node")
+  }
 
   /**
    * Return the level of a tree which the given node is in.
    */
-  def indexToLevel(nodeIndex: Int): Int = if (nodeIndex == 0) {
-    throw new IllegalArgumentException(s"0 is not a valid node index.")
-  } else {
-    java.lang.Integer.numberOfTrailingZeros(java.lang.Integer.highestOneBit(nodeIndex))
+  def indexToLevel(nodeIndex: Int): Int = {
+    throw new UnsupportedOperationException("Index to level is unsupported on learning node")
   }
 
   /**
    * Returns true if this is a left child.
    * Note: Returns false for the root.
    */
-  def isLeftChild(nodeIndex: Int): Boolean = nodeIndex > 1 && nodeIndex % 2 == 0
+  def isLeftChild(nodeIndex: Int): Boolean = {
+    throw new UnsupportedOperationException("Is left child is unsupported on learning node")
+  }
 
   /**
    * Return the maximum number of nodes which can be in the given level of the tree.
    * @param level  Level of tree (0 = root).
    */
-  def maxNodesInLevel(level: Int): Int = 1 << level
+  def maxNodesInLevel(level: Int): Int = {
+    throw new UnsupportedOperationException("Max nodes in level is unsupported on learning node")
+  }
 
   /**
    * Return the index of the first node in the given level.
    * @param level  Level of tree (0 = root).
    */
-  def startIndexInLevel(level: Int): Int = 1 << level
+  def startIndexInLevel(level: Int): Int = {
+    throw new UnsupportedOperationException("Start index in level is unsupported on learning node")
+  }
 
   /**
    * Traces down from a root node to get the node with the given node index.
    * This assumes the node exists.
    */
   def getNode(nodeIndex: Int, rootNode: LearningNode): LearningNode = {
-    var tmpNode: LearningNode = rootNode
-    var levelsToGo = indexToLevel(nodeIndex)
-    while (levelsToGo > 0) {
-      if ((nodeIndex & (1 << levelsToGo - 1)) == 0) {
-        tmpNode = tmpNode.leftChild.get
-      } else {
-        tmpNode = tmpNode.rightChild.get
-      }
-      levelsToGo -= 1
-    }
-    tmpNode
+    throw new UnsupportedOperationException("Get node is unsupported on learning node")
   }
 
 }

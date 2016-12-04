@@ -582,20 +582,21 @@ private[spark] object RandomForest extends Logging {
 
         // Extract info for this node.  Create children if not leaf.
         val isLeaf =
-          (stats.gain <= 0) || (LearningNode.indexToLevel(nodeIndex) == metadata.maxDepth)
+          (stats.gain <= 0) || (node.level == metadata.maxDepth)
         node.isLeaf = isLeaf
         node.stats = stats
         logDebug("Node = " + node)
 
         if (!isLeaf) {
           node.split = Some(split)
-          val childIsLeaf = (LearningNode.indexToLevel(nodeIndex) + 1) == metadata.maxDepth
+          val childLevel = node.level + 1
+          val childIsLeaf = childLevel == metadata.maxDepth
           val leftChildIsLeaf = childIsLeaf || (stats.leftImpurity == 0.0)
           val rightChildIsLeaf = childIsLeaf || (stats.rightImpurity == 0.0)
-          node.leftChild = Some(LearningNode(LearningNode.leftChildIndex(nodeIndex),
-            leftChildIsLeaf, ImpurityStats.getEmptyImpurityStats(stats.leftImpurityCalculator)))
-          node.rightChild = Some(LearningNode(LearningNode.rightChildIndex(nodeIndex),
-            rightChildIsLeaf, ImpurityStats.getEmptyImpurityStats(stats.rightImpurityCalculator)))
+          node.leftChild = Some(LearningNode(LearningNode.leftChildIndex(nodeIndex), leftChildIsLeaf,
+            ImpurityStats.getEmptyImpurityStats(stats.leftImpurityCalculator), childLevel))
+          node.rightChild = Some(LearningNode(LearningNode.rightChildIndex(nodeIndex), rightChildIsLeaf,
+            ImpurityStats.getEmptyImpurityStats(stats.rightImpurityCalculator), childLevel))
 
           if (nodeIdCache.nonEmpty) {
             val nodeIndexUpdater = NodeIndexUpdater(
@@ -698,8 +699,7 @@ private[spark] object RandomForest extends Logging {
       node: LearningNode): (Split, ImpurityStats) = {
 
     // Calculate InformationGain and ImpurityStats if current node is top node
-    val level = LearningNode.indexToLevel(node.id)
-    var gainAndImpurityStats: ImpurityStats = if (level == 0) {
+    var gainAndImpurityStats: ImpurityStats = if (node.level == 0) {
       null
     } else {
       node.stats
