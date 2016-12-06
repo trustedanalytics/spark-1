@@ -189,3 +189,68 @@ class ContinuousSplit private[ml] (override val featureIndex: Int, val threshold
     OldSplit(featureIndex, threshold, OldFeatureType.Continuous, List.empty[Double])
   }
 }
+
+/**
+ * Split which tests a categorical feature.
+ * @param featureIndex  Index of the feature to test
+ * @param _leftCategories  If the feature value is in this set of categories, then the split goes
+ *                         left. Otherwise, it goes right.
+ * @param numCategories  Number of categories for this feature.
+ */
+class SplitWithChildNodeInfo private[ml] (split: Split) extends Split {
+  private var _leftChildNodeId : Option[Int] = None
+  private var _rightChildNodeId : Option[Int] = None
+
+  def this(split: Split, leftChildId: Int, rightChildId: Int) = {
+    this(split)
+    setLeftChildNodeId(leftChildId)
+    setRightChildNodeId(rightChildId)
+  }
+
+  /** Index of feature which this split tests */
+  override def featureIndex: Int = split.featureIndex
+
+  /**
+   * Return true (split to left) or false (split to right).
+   * @param features  Vector of features (original values, not binned).
+   */
+  override private[ml] def shouldGoLeft(features: Vector): Boolean = {
+    split.shouldGoLeft(features)
+  }
+
+  /**
+   * Return true (split to left) or false (split to right).
+   * @param binnedFeature Binned feature value.
+   * @param splits All splits for the given feature.
+   */
+  override private[tree] def shouldGoLeft(binnedFeature: Int, splits: Array[Split]): Boolean = {
+    split.shouldGoLeft(binnedFeature, splits)
+  }
+
+  /** Convert to old Split format */
+  override private[tree] def toOld: OldSplit = {
+    split.toOld
+  }
+
+  def setLeftChildNodeId(nodeId: Int) = {
+    _leftChildNodeId = Some(nodeId)
+  }
+
+  def setRightChildNodeId(nodeId: Int) = {
+    _rightChildNodeId = Some(nodeId)
+  }
+
+  def getLeftChildNodeId : Int = {
+    _leftChildNodeId match {
+      case Some(id) => id
+      case _ => throw new RuntimeException("Left child node id is not defined")
+    }
+  }
+
+  def getRightChildNodeId : Int = {
+    _rightChildNodeId match {
+      case Some(id) => id
+      case _ => throw new RuntimeException("Left child node id is not defined")
+    }
+  }
+}

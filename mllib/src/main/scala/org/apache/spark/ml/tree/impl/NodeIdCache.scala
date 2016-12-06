@@ -24,7 +24,7 @@ import scala.collection.mutable
 import org.apache.hadoop.fs.Path
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.ml.tree.{LearningNode, Split}
+import org.apache.spark.ml.tree.{SplitWithChildNodeInfo, LearningNode, Split}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
@@ -34,7 +34,7 @@ import org.apache.spark.storage.StorageLevel
  * @param split Split information.
  * @param nodeIndex The current node index of a data point that this will update.
  */
-private[tree] case class NodeIndexUpdater(split: Split, nodeIndex: Int) {
+private[tree] case class NodeIndexUpdater(split: SplitWithChildNodeInfo, nodeIndex: Int) {
 
   /**
    * Determine a child node index based on the feature value and the split.
@@ -44,9 +44,9 @@ private[tree] case class NodeIndexUpdater(split: Split, nodeIndex: Int) {
    */
   def updateNodeIndex(binnedFeature: Int, splits: Array[Split]): Int = {
     if (split.shouldGoLeft(binnedFeature, splits)) {
-      LearningNode.leftChildIndex(nodeIndex)
+      split.getLeftChildNodeId
     } else {
-      LearningNode.rightChildIndex(nodeIndex)
+      split.getRightChildNodeId
     }
   }
 }
@@ -191,5 +191,22 @@ private[spark] object NodeIdCache {
     new NodeIdCache(
       data.map(_ => Array.fill[Int](numTrees)(initVal)),
       checkpointInterval)
+  }
+}
+
+
+private[spark] case class NodeIndexer(initOffset: Int) {
+  private var maxId : Int = initOffset
+
+  def hasNext : Boolean = maxId < Int.MaxValue
+
+  def nextId() : Int = {
+    if (hasNext) {
+      maxId = maxId + 1
+    }
+    else {
+      throw new RuntimeException("yikes")
+    }
+    maxId
   }
 }

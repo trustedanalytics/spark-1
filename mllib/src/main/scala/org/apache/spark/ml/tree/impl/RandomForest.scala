@@ -170,13 +170,13 @@ private[spark] object RandomForest extends Logging {
       workers on each iteration; see topNodesForGroup below.
      */
     val nodeStack = new mutable.Stack[(Int, LearningNode)]
-
     val rng = new Random()
     rng.setSeed(seed)
 
     // Allocate and queue root nodes.
     val topNodes = Array.fill[LearningNode](numTrees)(LearningNode.emptyNode(nodeIndex = 1))
     Range(0, numTrees).foreach(treeIndex => nodeStack.push((treeIndex, topNodes(treeIndex))))
+    val maxNodeIds = Array.fill[NodeIndexer](numTrees)(NodeIndexer(1))
 
     timer.stop("init")
 
@@ -196,7 +196,7 @@ private[spark] object RandomForest extends Logging {
       // Choose node splits, and enqueue new nodes as needed.
       timer.start("findBestSplits")
       RandomForest.findBestSplits(baggedInput, metadata, topNodesForGroup, nodesForGroup,
-        treeToNodeToIndexInfo, splits, nodeStack, timer, nodeIdCache)
+        treeToNodeToIndexInfo, splits, nodeStack, timer, nodeIdCache, maxNodeIds)
       timer.stop("findBestSplits")
     }
 
@@ -369,7 +369,8 @@ private[spark] object RandomForest extends Logging {
       splits: Array[Array[Split]],
       nodeStack: mutable.Stack[(Int, LearningNode)],
       timer: TimeTracker = new TimeTracker,
-      nodeIdCache: Option[NodeIdCache] = None): Unit = {
+      nodeIdCache: Option[NodeIdCache] = None,
+      maxNodeIds: Array[NodeIndexer] = Array.empty[NodeIndexer]): Unit = {
 
     /*
      * The high-level descriptions of the best split optimizations are noted here.
@@ -573,6 +574,7 @@ private[spark] object RandomForest extends Logging {
     // Iterate over all nodes in this group.
     nodesForGroup.foreach { case (treeIndex, nodesForTree) =>
       nodesForTree.foreach { node =>
+
         val nodeIndex = node.id
         val nodeInfo = treeToNodeToIndexInfo(treeIndex)(nodeIndex)
         val aggNodeIndex = nodeInfo.nodeIndexInGroup
@@ -593,14 +595,17 @@ private[spark] object RandomForest extends Logging {
           val childIsLeaf = childLevel == metadata.maxDepth
           val leftChildIsLeaf = childIsLeaf || (stats.leftImpurity == 0.0)
           val rightChildIsLeaf = childIsLeaf || (stats.rightImpurity == 0.0)
-          node.leftChild = Some(LearningNode(LearningNode.leftChildIndex(nodeIndex), leftChildIsLeaf,
+          val leftChildIndex = maxNodeIds(treeIndex).nextId() // LearningNode.leftChildIndex(nodeIndex)
+          val rightChildIndex = maxNodeIds(treeIndex).nextId() //LearningNode.rightChildIndex(nodeIndex)
+          node.leftChild = Some(LearningNode(leftChildIndex, leftChildIsLeaf,
             ImpurityStats.getEmptyImpurityStats(stats.leftImpurityCalculator), childLevel))
-          node.rightChild = Some(LearningNode(LearningNode.rightChildIndex(nodeIndex), rightChildIsLeaf,
+          node.rightChild = Some(LearningNode(rightChildIndex, rightChildIsLeaf,
             ImpurityStats.getEmptyImpurityStats(stats.rightImpurityCalculator), childLevel))
 
           if (nodeIdCache.nonEmpty) {
+            val splitWithChildInfo = new SplitWithChildNodeInfo(split, leftChildIndex, rightChildIndex)
             val nodeIndexUpdater = NodeIndexUpdater(
-              split = split,
+              split = splitWithChildInfo,
               nodeIndex = nodeIndex)
             nodeIdUpdaters(treeIndex).put(nodeIndex, nodeIndexUpdater)
           }
