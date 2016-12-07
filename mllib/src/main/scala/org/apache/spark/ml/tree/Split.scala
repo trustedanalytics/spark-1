@@ -191,20 +191,24 @@ class ContinuousSplit private[ml] (override val featureIndex: Int, val threshold
 }
 
 /**
- * Split which tests a categorical feature.
- * @param featureIndex  Index of the feature to test
- * @param _leftCategories  If the feature value is in this set of categories, then the split goes
- *                         left. Otherwise, it goes right.
- * @param numCategories  Number of categories for this feature.
+ * Split with pointers to the left and right child nodes in decision tree.
+ * Used to update the node index cache.
+ * @param split Input split
  */
 class SplitWithChildNodeInfo private[ml] (split: Split) extends Split {
-  private var _leftChildNodeId : Option[Int] = None
-  private var _rightChildNodeId : Option[Int] = None
+  private var _leftChildIndex : Option[Int] = None
+  private var _rightChildIndex : Option[Int] = None
 
-  def this(split: Split, leftChildId: Int, rightChildId: Int) = {
+  /**
+   * Create split with pointers to left and right child nodes
+   * @param split Input split
+   * @param leftChildIndex Index of left child node
+   * @param rightChildIndex Index of right child node
+   */
+  def this(split: Split, leftChildIndex: Int, rightChildIndex: Int) = {
     this(split)
-    setLeftChildNodeId(leftChildId)
-    setRightChildNodeId(rightChildId)
+    setLeftChildNodeId(leftChildIndex)
+    setRightChildNodeId(rightChildIndex)
   }
 
   /** Index of feature which this split tests */
@@ -232,23 +236,27 @@ class SplitWithChildNodeInfo private[ml] (split: Split) extends Split {
     split.toOld
   }
 
+  /** Set index of left child node in decision tree */
   def setLeftChildNodeId(nodeId: Int) = {
-    _leftChildNodeId = Some(nodeId)
+    _leftChildIndex = Some(nodeId)
   }
 
+  /** Set index of right child node in decision tree */
   def setRightChildNodeId(nodeId: Int) = {
-    _rightChildNodeId = Some(nodeId)
+    _rightChildIndex = Some(nodeId)
   }
 
+  /** Get index of left child node in decision tree */
   def getLeftChildNodeId : Int = {
-    _leftChildNodeId match {
+    _leftChildIndex match {
       case Some(id) => id
       case _ => throw new RuntimeException("Left child node id is not defined")
     }
   }
 
+  /** Get index of right child node in decision tree */
   def getRightChildNodeId : Int = {
-    _rightChildNodeId match {
+    _rightChildIndex match {
       case Some(id) => id
       case _ => throw new RuntimeException("Left child node id is not defined")
     }

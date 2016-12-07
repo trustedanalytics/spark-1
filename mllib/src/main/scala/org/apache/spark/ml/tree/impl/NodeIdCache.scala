@@ -173,6 +173,33 @@ private[spark] class NodeIdCache(
   }
 }
 
+/**
+ * Incrementally assigns new node indices per tree. 
+ * The node index assigner tracks the maximum node index that
+ * has been assigned to a given tree.
+ * 
+ * @param rootNodeIndex Index for the root node
+ */
+private[spark] case class NodeIndexAssigner(rootNodeIndex: Int) {
+  private var maxNodeIndex : Int = rootNodeIndex
+
+  /**
+   * Check if new node indices can be assigned
+   * @return True if new node indices can be assigned
+   */
+  def hasNext : Boolean = maxNodeIndex < Int.MaxValue
+
+  /**
+   * Assign next node index by incrementing the maximum node index for tree
+   * @return Next node index
+   */
+  def nextIndex() : Int = {
+    assert(hasNext, "Decision Tree cannot allocate new nodes since node indices cannot exceed MAXINT")
+    maxNodeIndex = maxNodeIndex + 1
+    maxNodeIndex
+  }
+}
+
 private[spark] object NodeIdCache {
   /**
    * Initialize the node Id cache with initial node Id values.
@@ -195,18 +222,3 @@ private[spark] object NodeIdCache {
 }
 
 
-private[spark] case class NodeIndexer(initOffset: Int) {
-  private var maxId : Int = initOffset
-
-  def hasNext : Boolean = maxId < Int.MaxValue
-
-  def nextId() : Int = {
-    if (hasNext) {
-      maxId = maxId + 1
-    }
-    else {
-      throw new RuntimeException("yikes")
-    }
-    maxId
-  }
-}

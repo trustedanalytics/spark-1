@@ -134,8 +134,6 @@ private[spark] object RandomForest extends Logging {
 
     // depth of the decision tree
     val maxDepth = strategy.maxDepth
-    require(maxDepth <= 30,
-      s"DecisionTree currently only supports maxDepth <= 30, but was given maxDepth = $maxDepth.")
 
     // Max memory usage for aggregates
     // TODO: Calculate memory usage more precisely.
@@ -176,7 +174,7 @@ private[spark] object RandomForest extends Logging {
     // Allocate and queue root nodes.
     val topNodes = Array.fill[LearningNode](numTrees)(LearningNode.emptyNode(nodeIndex = 1))
     Range(0, numTrees).foreach(treeIndex => nodeStack.push((treeIndex, topNodes(treeIndex))))
-    val maxNodeIds = Array.fill[NodeIndexer](numTrees)(NodeIndexer(1))
+    val nodeIdAssigners = Array.fill[NodeIndexAssigner](numTrees)(NodeIndexAssigner(1))
 
     timer.stop("init")
 
@@ -196,7 +194,7 @@ private[spark] object RandomForest extends Logging {
       // Choose node splits, and enqueue new nodes as needed.
       timer.start("findBestSplits")
       RandomForest.findBestSplits(baggedInput, metadata, topNodesForGroup, nodesForGroup,
-        treeToNodeToIndexInfo, splits, nodeStack, timer, nodeIdCache, maxNodeIds)
+        treeToNodeToIndexInfo, splits, nodeStack, nodeIdAssigners, timer, nodeIdCache)
       timer.stop("findBestSplits")
     }
 
@@ -354,6 +352,8 @@ private[spark] object RandomForest extends Logging {
    * @param splits possible splits for all features, indexed (numFeatures)(numSplits)
    * @param nodeStack  Queue of nodes to split, with values (treeIndex, node).
    *                   Updated with new non-leaf nodes which are created.
+   * @param nodeIdAssigners Node Id assigners for each tree
+   * @param timer Track time for choosing splits
    * @param nodeIdCache Node Id cache containing an RDD of Array[Int] where
    *                    each value in the array is the data point's node Id
    *                    for a corresponding tree. This is used to prevent the need
@@ -368,9 +368,9 @@ private[spark] object RandomForest extends Logging {
       treeToNodeToIndexInfo: Map[Int, Map[Int, NodeIndexInfo]],
       splits: Array[Array[Split]],
       nodeStack: mutable.Stack[(Int, LearningNode)],
+      nodeIdAssigners: Array[NodeIndexAssigner],
       timer: TimeTracker = new TimeTracker,
-      nodeIdCache: Option[NodeIdCache] = None,
-      maxNodeIds: Array[NodeIndexer] = Array.empty[NodeIndexer]): Unit = {
+      nodeIdCache: Option[NodeIdCache] = None): Unit = {
 
     /*
      * The high-level descriptions of the best split optimizations are noted here.
@@ -595,8 +595,8 @@ private[spark] object RandomForest extends Logging {
           val childIsLeaf = childLevel == metadata.maxDepth
           val leftChildIsLeaf = childIsLeaf || (stats.leftImpurity == 0.0)
           val rightChildIsLeaf = childIsLeaf || (stats.rightImpurity == 0.0)
-          val leftChildIndex = maxNodeIds(treeIndex).nextId() // LearningNode.leftChildIndex(nodeIndex)
-          val rightChildIndex = maxNodeIds(treeIndex).nextId() //LearningNode.rightChildIndex(nodeIndex)
+          val leftChildIndex = nodeIdAssigners(treeIndex).nextIndex()
+          val rightChildIndex = nodeIdAssigners(treeIndex).nextIndex()
           node.leftChild = Some(LearningNode(leftChildIndex, leftChildIsLeaf,
             ImpurityStats.getEmptyImpurityStats(stats.leftImpurityCalculator), childLevel))
           node.rightChild = Some(LearningNode(rightChildIndex, rightChildIsLeaf,

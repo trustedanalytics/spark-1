@@ -363,43 +363,4 @@ private[tree] object LearningNode {
     throw new UnsupportedOperationException("Parent index is unsupported on learning node")
   }
 
-  /**
-   * Return the level of a tree which the given node is in.
-   */
-  def indexToLevel(nodeIndex: Int): Int = {
-    throw new UnsupportedOperationException("Index to level is unsupported on learning node")
-  }
-
-  /**
-   * Returns true if this is a left child.
-   * Note: Returns false for the root.
-   */
-  def isLeftChild(nodeIndex: Int): Boolean = {
-    throw new UnsupportedOperationException("Is left child is unsupported on learning node")
-  }
-
-  /**
-   * Return the maximum number of nodes which can be in the given level of the tree.
-   * @param level  Level of tree (0 = root).
-   */
-  def maxNodesInLevel(level: Int): Int = {
-    throw new UnsupportedOperationException("Max nodes in level is unsupported on learning node")
-  }
-
-  /**
-   * Return the index of the first node in the given level.
-   * @param level  Level of tree (0 = root).
-   */
-  def startIndexInLevel(level: Int): Int = {
-    throw new UnsupportedOperationException("Start index in level is unsupported on learning node")
-  }
-
-  /**
-   * Traces down from a root node to get the node with the given node index.
-   * This assumes the node exists.
-   */
-  def getNode(nodeIndex: Int, rootNode: LearningNode): LearningNode = {
-    throw new UnsupportedOperationException("Get node is unsupported on learning node")
-  }
-
 }
