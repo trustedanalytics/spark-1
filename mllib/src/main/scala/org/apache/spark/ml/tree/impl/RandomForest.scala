@@ -134,8 +134,6 @@ private[spark] object RandomForest extends Logging {
 
     // depth of the decision tree
     val maxDepth = strategy.maxDepth
-    require(maxDepth <= 30,
-      s"DecisionTree currently only supports maxDepth <= 30, but was given maxDepth = $maxDepth.")
 
     // Max memory usage for aggregates
     // TODO: Calculate memory usage more precisely.
@@ -170,13 +168,13 @@ private[spark] object RandomForest extends Logging {
       workers on each iteration; see topNodesForGroup below.
      */
     val nodeStack = new mutable.Stack[(Int, LearningNode)]
-
     val rng = new Random()
     rng.setSeed(seed)
 
     // Allocate and queue root nodes.
     val topNodes = Array.fill[LearningNode](numTrees)(LearningNode.emptyNode(nodeIndex = 1))
     Range(0, numTrees).foreach(treeIndex => nodeStack.push((treeIndex, topNodes(treeIndex))))
+    val nodeIdAssigners = Array.fill[NodeIndexAssigner](numTrees)(NodeIndexAssigner(1))
 
     timer.stop("init")
 
@@ -196,7 +194,7 @@ private[spark] object RandomForest extends Logging {
       // Choose node splits, and enqueue new nodes as needed.
       timer.start("findBestSplits")
       RandomForest.findBestSplits(baggedInput, metadata, topNodesForGroup, nodesForGroup,
-        treeToNodeToIndexInfo, splits, nodeStack, timer, nodeIdCache)
+        treeToNodeToIndexInfo, splits, nodeStack, nodeIdAssigners, timer, nodeIdCache)
       timer.stop("findBestSplits")
     }
 
@@ -354,6 +352,8 @@ private[spark] object RandomForest extends Logging {
    * @param splits possible splits for all features, indexed (numFeatures)(numSplits)
    * @param nodeStack  Queue of nodes to split, with values (treeIndex, node).
    *                   Updated with new non-leaf nodes which are created.
+   * @param nodeIdAssigners Node Id assigners for each tree
+   * @param timer Track time for choosing splits
    * @param nodeIdCache Node Id cache containing an RDD of Array[Int] where
    *                    each value in the array is the data point's node Id
    *                    for a corresponding tree. This is used to prevent the need
@@ -368,6 +368,7 @@ private[spark] object RandomForest extends Logging {
       treeToNodeToIndexInfo: Map[Int, Map[Int, NodeIndexInfo]],
       splits: Array[Array[Split]],
       nodeStack: mutable.Stack[(Int, LearningNode)],
+      nodeIdAssigners: Array[NodeIndexAssigner],
       timer: TimeTracker = new TimeTracker,
       nodeIdCache: Option[NodeIdCache] = None): Unit = {
 
@@ -573,6 +574,7 @@ private[spark] object RandomForest extends Logging {
     // Iterate over all nodes in this group.
     nodesForGroup.foreach { case (treeIndex, nodesForTree) =>
       nodesForTree.foreach { node =>
+
         val nodeIndex = node.id
         val nodeInfo = treeToNodeToIndexInfo(treeIndex)(nodeIndex)
         val aggNodeIndex = nodeInfo.nodeIndexInGroup
@@ -582,25 +584,31 @@ private[spark] object RandomForest extends Logging {
 
         // Extract info for this node.  Create children if not leaf.
         val isLeaf =
-          (stats.gain <= 0) || (LearningNode.indexToLevel(nodeIndex) == metadata.maxDepth)
+          (stats.gain <= 0) || (node.level == metadata.maxDepth)
         node.isLeaf = isLeaf
         node.stats = stats
         logDebug("Node = " + node)
 
         if (!isLeaf) {
           node.split = Some(split)
-          val childIsLeaf = (LearningNode.indexToLevel(nodeIndex) + 1) == metadata.maxDepth
+          val childLevel = node.level + 1
+          val childIsLeaf = childLevel == metadata.maxDepth
           val leftChildIsLeaf = childIsLeaf || (stats.leftImpurity == 0.0)
           val rightChildIsLeaf = childIsLeaf || (stats.rightImpurity == 0.0)
-          node.leftChild = Some(LearningNode(LearningNode.leftChildIndex(nodeIndex),
-            leftChildIsLeaf, ImpurityStats.getEmptyImpurityStats(stats.leftImpurityCalculator)))
-          node.rightChild = Some(LearningNode(LearningNode.rightChildIndex(nodeIndex),
-            rightChildIsLeaf, ImpurityStats.getEmptyImpurityStats(stats.rightImpurityCalculator)))
+          val leftChildIndex = nodeIdAssigners(treeIndex).nextIndex()
+          val rightChildIndex = nodeIdAssigners(treeIndex).nextIndex()
+          node.leftChild = Some(LearningNode(leftChildIndex, leftChildIsLeaf,
+            ImpurityStats.getEmptyImpurityStats(stats.leftImpurityCalculator), childLevel))
+          node.rightChild = Some(LearningNode(rightChildIndex, rightChildIsLeaf,
+            ImpurityStats.getEmptyImpurityStats(stats.rightImpurityCalculator), childLevel))
 
           if (nodeIdCache.nonEmpty) {
             val nodeIndexUpdater = NodeIndexUpdater(
               split = split,
-              nodeIndex = nodeIndex)
+              nodeIndex = nodeIndex,
+              leftChildIndex = leftChildIndex,
+              rightChildIndex = rightChildIndex
+            )
             nodeIdUpdaters(treeIndex).put(nodeIndex, nodeIndexUpdater)
           }
 
@@ -698,8 +706,7 @@ private[spark] object RandomForest extends Logging {
       node: LearningNode): (Split, ImpurityStats) = {
 
     // Calculate InformationGain and ImpurityStats if current node is top node
-    val level = LearningNode.indexToLevel(node.id)
-    var gainAndImpurityStats: ImpurityStats = if (level == 0) {
+    var gainAndImpurityStats: ImpurityStats = if (node.level == 0) {
       null
     } else {
       node.stats

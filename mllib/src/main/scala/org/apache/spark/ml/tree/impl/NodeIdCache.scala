@@ -24,7 +24,7 @@ import scala.collection.mutable
 import org.apache.hadoop.fs.Path
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.ml.tree.{LearningNode, Split}
+import org.apache.spark.ml.tree.Split
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
@@ -33,8 +33,11 @@ import org.apache.spark.storage.StorageLevel
  * This is used by the node id cache to find the child id that a data point would belong to.
  * @param split Split information.
  * @param nodeIndex The current node index of a data point that this will update.
+ * @param leftChildIndex Index of left child of current node
+ * @param rightChildIndex Index of right child of current node
  */
-private[tree] case class NodeIndexUpdater(split: Split, nodeIndex: Int) {
+private[tree] case class NodeIndexUpdater(split: Split, nodeIndex: Int,
+                                          leftChildIndex: Int, rightChildIndex: Int) {
 
   /**
    * Determine a child node index based on the feature value and the split.
@@ -44,9 +47,9 @@ private[tree] case class NodeIndexUpdater(split: Split, nodeIndex: Int) {
    */
   def updateNodeIndex(binnedFeature: Int, splits: Array[Split]): Int = {
     if (split.shouldGoLeft(binnedFeature, splits)) {
-      LearningNode.leftChildIndex(nodeIndex)
+      leftChildIndex
     } else {
-      LearningNode.rightChildIndex(nodeIndex)
+      rightChildIndex
     }
   }
 }
@@ -173,6 +176,27 @@ private[spark] class NodeIdCache(
   }
 }
 
+/**
+ * Incrementally assigns new node indices per tree. 
+ * The node index assigner tracks the maximum node index that
+ * has been assigned to a given tree.
+ * 
+ * @param rootNodeIndex Index for the root node
+ */
+private[spark] case class NodeIndexAssigner(rootNodeIndex: Int) {
+  private var maxNodeIndex : Int = rootNodeIndex
+
+  /**
+   * Assign next node index by incrementing the maximum node index for tree
+   * @return Next node index
+   */
+  def nextIndex() : Int = {
+    assert(maxNodeIndex < Int.MaxValue, "Node indexer cannot allocate ids that exceed MAXINT")
+    maxNodeIndex = maxNodeIndex + 1
+    maxNodeIndex
+  }
+}
+
 private[spark] object NodeIdCache {
   /**
    * Initialize the node Id cache with initial node Id values.
@@ -193,3 +217,5 @@ private[spark] object NodeIdCache {
       checkpointInterval)
   }
 }
+
+

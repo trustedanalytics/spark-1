@@ -270,9 +270,10 @@ class RandomForestSuite extends SparkFunSuite with MLlibTestSparkContext {
     val treeToNodeToIndexInfo = Map((0, Map(
       (topNode.id, new RandomForest.NodeIndexInfo(0, None))
     )))
+    val nodeIdAssigner = Array(NodeIndexAssigner(topNode.id))
     val nodeStack = new mutable.Stack[(Int, LearningNode)]
     RandomForest.findBestSplits(baggedInput, metadata, Map(0 -> topNode),
-      nodesForGroup, treeToNodeToIndexInfo, splits, nodeStack)
+      nodesForGroup, treeToNodeToIndexInfo, splits, nodeStack, nodeIdAssigner)
 
     // don't enqueue leaf nodes into node queue
     assert(nodeStack.isEmpty)
@@ -286,6 +287,13 @@ class RandomForestSuite extends SparkFunSuite with MLlibTestSparkContext {
     assert(topNode.rightChild.get.toNode.prediction === 1.0)
     assert(topNode.leftChild.get.stats.impurity === 0.0)
     assert(topNode.rightChild.get.stats.impurity === 0.0)
+
+    // verify node indices correctly assigned
+    assert(topNode.id == 1)
+    assert(topNode.leftChild.get.id == 2)
+    assert(topNode.rightChild.get.id == 3)
+    assert(nodeIdAssigner(0).rootNodeIndex == 1)
+    assert(nodeIdAssigner(0).nextIndex() == 4)
   }
 
   test("Avoid aggregation if impurity is 0.0") {
@@ -313,8 +321,9 @@ class RandomForestSuite extends SparkFunSuite with MLlibTestSparkContext {
       (topNode.id, new RandomForest.NodeIndexInfo(0, None))
     )))
     val nodeStack = new mutable.Stack[(Int, LearningNode)]
+    val nodeIdAssigner = Array(NodeIndexAssigner(topNode.id))
     RandomForest.findBestSplits(baggedInput, metadata, Map(0 -> topNode),
-      nodesForGroup, treeToNodeToIndexInfo, splits, nodeStack)
+      nodesForGroup, treeToNodeToIndexInfo, splits, nodeStack, nodeIdAssigner)
 
     // don't enqueue a node into node queue if its impurity is 0.0
     assert(nodeStack.isEmpty)
@@ -328,6 +337,13 @@ class RandomForestSuite extends SparkFunSuite with MLlibTestSparkContext {
     assert(topNode.rightChild.get.toNode.prediction === 1.0)
     assert(topNode.leftChild.get.stats.impurity === 0.0)
     assert(topNode.rightChild.get.stats.impurity === 0.0)
+
+    // verify node indices correctly assigned
+    assert(topNode.id == 1)
+    assert(topNode.leftChild.get.id == 2)
+    assert(topNode.rightChild.get.id == 3)
+    assert(nodeIdAssigner(0).rootNodeIndex == 1)
+    assert(nodeIdAssigner(0).nextIndex() == 4)
   }
 
   test("Use soft prediction for binary classification with ordered categorical features") {
