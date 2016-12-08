@@ -294,7 +294,6 @@ class RandomForestSuite extends SparkFunSuite with MLlibTestSparkContext {
     assert(topNode.rightChild.get.id == 3)
     assert(nodeIdAssigner(0).rootNodeIndex == 1)
     assert(nodeIdAssigner(0).nextIndex() == 4)
-    assert(nodeIdAssigner(0).hasNext)
   }
 
   test("Avoid aggregation if impurity is 0.0") {
@@ -345,7 +344,6 @@ class RandomForestSuite extends SparkFunSuite with MLlibTestSparkContext {
     assert(topNode.rightChild.get.id == 3)
     assert(nodeIdAssigner(0).rootNodeIndex == 1)
     assert(nodeIdAssigner(0).nextIndex() == 4)
-    assert(nodeIdAssigner(0).hasNext)
   }
 
   test("Use soft prediction for binary classification with ordered categorical features") {

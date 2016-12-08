@@ -257,6 +257,7 @@ private object InternalNode {
  * @param isLeaf  Indicates whether this node will definitely be a leaf in the learned tree,
  *                so that we do not need to consider splitting it further.
  * @param stats  Impurity statistics for this node.
+ * @param level Level or depth of node in tree
  */
 private[tree] class LearningNode(
     var id: Int,

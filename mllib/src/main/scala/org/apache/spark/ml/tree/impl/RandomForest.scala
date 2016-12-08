@@ -603,10 +603,12 @@ private[spark] object RandomForest extends Logging {
             ImpurityStats.getEmptyImpurityStats(stats.rightImpurityCalculator), childLevel))
 
           if (nodeIdCache.nonEmpty) {
-            val splitWithChildInfo = new SplitWithChildNodeInfo(split, leftChildIndex, rightChildIndex)
             val nodeIndexUpdater = NodeIndexUpdater(
-              split = splitWithChildInfo,
-              nodeIndex = nodeIndex)
+              split = split,
+              nodeIndex = nodeIndex,
+              leftChildIndex = leftChildIndex,
+              rightChildIndex = rightChildIndex
+            )
             nodeIdUpdaters(treeIndex).put(nodeIndex, nodeIndexUpdater)
           }
 

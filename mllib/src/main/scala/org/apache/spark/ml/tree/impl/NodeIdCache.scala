@@ -33,8 +33,11 @@ import org.apache.spark.storage.StorageLevel
  * This is used by the node id cache to find the child id that a data point would belong to.
  * @param split Split information.
  * @param nodeIndex The current node index of a data point that this will update.
+ * @param leftChildIndex Index of left child of current node
+ * @param rightChildIndex Index of right child of current node
  */
-private[tree] case class NodeIndexUpdater(split: SplitWithChildNodeInfo, nodeIndex: Int) {
+private[tree] case class NodeIndexUpdater(split: Split, nodeIndex: Int,
+                                          leftChildIndex: Int, rightChildIndex: Int) {
 
   /**
    * Determine a child node index based on the feature value and the split.
@@ -44,9 +47,9 @@ private[tree] case class NodeIndexUpdater(split: SplitWithChildNodeInfo, nodeInd
    */
   def updateNodeIndex(binnedFeature: Int, splits: Array[Split]): Int = {
     if (split.shouldGoLeft(binnedFeature, splits)) {
-      split.getLeftChildNodeId
+      leftChildIndex
     } else {
-      split.getRightChildNodeId
+      rightChildIndex
     }
   }
 }
@@ -184,17 +187,11 @@ private[spark] case class NodeIndexAssigner(rootNodeIndex: Int) {
   private var maxNodeIndex : Int = rootNodeIndex
 
   /**
-   * Check if new node indices can be assigned
-   * @return True if new node indices can be assigned
-   */
-  def hasNext : Boolean = maxNodeIndex < Int.MaxValue
-
-  /**
    * Assign next node index by incrementing the maximum node index for tree
    * @return Next node index
    */
   def nextIndex() : Int = {
-    assert(hasNext, "Decision Tree cannot allocate new nodes since node indices cannot exceed MAXINT")
+    assert(maxNodeIndex < Int.MaxValue, "Node indexer cannot allocate ids that exceed MAXINT")
     maxNodeIndex = maxNodeIndex + 1
     maxNodeIndex
   }
