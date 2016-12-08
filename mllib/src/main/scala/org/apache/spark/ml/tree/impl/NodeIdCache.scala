@@ -24,7 +24,7 @@ import scala.collection.mutable
 import org.apache.hadoop.fs.Path
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.ml.tree.{SplitWithChildNodeInfo, LearningNode, Split}
+import org.apache.spark.ml.tree.Split
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 
